@@ -1,0 +1,59 @@
+FROM ubuntu:18.04
+
+MAINTAINER elastic7327
+
+ENV LANG C.UTF-8
+
+ARG DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update && \
+    apt-get upgrade -y && \
+    apt-get install -y \
+    git \
+    python3.6 \
+    python3-dev \
+    python3-setuptools \
+    python3-pip \
+    nginx \
+    supervisor \
+    postgresql postgresql-contrib \
+    sqlite3 \
+    locales && \
+    rm -rf /var/lib/apt/lists/*
+
+RUN pip3 install -U pip setuptools
+
+# install uwsgi now because it takes a little while
+# RUN pip3 install uwsgi
+
+# COPY requirements.txt and RUN pip install BEFORE adding the rest of your code, this will cause Docker's caching mechanism
+# to prevent re-installing (all your) dependencies when you made a change a line or two in your app.
+ADD requirements/requirements.txt /project/
+
+WORKDIR /project
+
+RUN pip3 install -r /project/requirements.txt
+
+ADD . /project/
+
+ARG SERVICE_ARG=dev
+ENV DJANGO_SETTINGS_MODULE=django3_uvicorn.settings.$SERVICE_ARG
+
+#ENV DATABASE_ENGINE=${DATABASE_ENGINE} \
+    #DATABASE_HOST=${DATABASE_HOST} \
+    #DATABASE_PORT=${DATABASE_PORT} \
+    #DATABASE_NAME=${DATABASE_NAME} \
+    #DATABASE_USER=${DATABASE_USER} \
+    #DATABASE_PASSWORD=${DATABASE_PASSWORD} \
+    #DJANGO_SECRET_KEY=${DJANGO_SECRET_KEY} \
+    #DJANGO_SETTINGS_MODULE=${DJANGO_SETTINGS_MODULE}
+
+RUN echo "daemon off;" >> /etc/nginx/nginx.conf
+
+COPY nginx.conf /etc/nginx/sites-available/default
+COPY supervisor.conf /etc/supervisor/conf.d/
+
+EXPOSE 80
+EXPOSE 443
+
+CMD ["supervisord", "-n"]
